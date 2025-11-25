@@ -14,6 +14,7 @@ import AddAlarmDialog from "@/components/AddAlarmDialog";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activePair, setActivePair] = useState<any>(null);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
@@ -46,12 +47,22 @@ const Dashboard = () => {
 
   const loadPairData = async (userId: string) => {
     try {
+      // Load current user's profile
+      const { data: myProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+      
+      setUserProfile(myProfile);
+
+      // Load pair data
       const { data: pairs, error } = await supabase
         .from("pairs")
         .select("*")
         .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`)
         .eq("status", "accepted")
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== "PGRST116") throw error;
 
@@ -63,7 +74,7 @@ const Dashboard = () => {
           .from("profiles")
           .select("*")
           .eq("id", partnerId)
-          .single();
+          .maybeSingle();
         
         setPartnerProfile(profile);
       }
@@ -98,9 +109,14 @@ const Dashboard = () => {
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-warm-light rounded-xl flex items-center justify-center">
               <span className="text-white font-bold text-lg">D</span>
             </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Duos
-            </h1>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                Duos
+              </h1>
+              {userProfile && (
+                <p className="text-xs text-muted-foreground">@{userProfile.username}</p>
+              )}
+            </div>
           </div>
           <Button variant="ghost" size="icon" onClick={handleSignOut}>
             <LogOut className="h-5 w-5" />
