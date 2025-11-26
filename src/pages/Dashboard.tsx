@@ -72,7 +72,7 @@ const Dashboard = () => {
         
         const { data: profile } = await supabase
           .from("profiles")
-          .select("*")
+          .select("id, username")
           .eq("id", partnerId)
           .maybeSingle();
         
@@ -155,7 +155,13 @@ const Dashboard = () => {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <AddTaskDialog pairId={activePair.id} userId={user?.id || ""} />
+                    <AddTaskDialog 
+                      pairId={activePair.id} 
+                      userId={user?.id || ""} 
+                      partnerId={partnerProfile?.id || null}
+                      myUsername={userProfile?.username || "Me"}
+                      partnerUsername={partnerProfile?.username || "Partner"}
+                    />
                     <AddAlarmDialog pairId={activePair.id} userId={user?.id || ""} />
                   </div>
                 </div>
@@ -169,7 +175,7 @@ const Dashboard = () => {
                   <CardTitle>Tasks</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <TaskList pairId={activePair.id} />
+                  <TaskList pairId={activePair.id} currentUserId={user?.id || ""} />
                 </CardContent>
               </Card>
 
