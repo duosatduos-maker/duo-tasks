@@ -59,7 +59,12 @@ const TaskList = ({ pairId, currentUserId }: TaskListProps) => {
   const loadTasks = async () => {
     const { data, error } = await supabase
       .from("tasks")
-      .select("*")
+      .select(`
+        *,
+        profiles:assigned_to (
+          username
+        )
+      `)
       .eq("pair_id", pairId)
       .order("due_date", { ascending: true });
 
@@ -72,21 +77,7 @@ const TaskList = ({ pairId, currentUserId }: TaskListProps) => {
       return;
     }
 
-    // Fetch usernames separately for assigned users
-    const userIds = [...new Set(data?.map(t => t.assigned_to).filter(Boolean))];
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, username")
-      .in("id", userIds);
-
-    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
-    
-    const tasksWithProfiles = (data || []).map(task => ({
-      ...task,
-      profiles: task.assigned_to ? profileMap.get(task.assigned_to) : null
-    }));
-
-    setTasks(tasksWithProfiles as any);
+    setTasks(data || []);
   };
 
   const toggleTask = async (taskId: string, completed: boolean) => {
