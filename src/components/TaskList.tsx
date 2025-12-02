@@ -61,7 +61,7 @@ const TaskList = ({ pairId, currentUserId }: TaskListProps) => {
       .from("tasks")
       .select(`
         *,
-        profiles:assigned_to (
+        profiles!tasks_assigned_to_fkey (
           username
         )
       `)
