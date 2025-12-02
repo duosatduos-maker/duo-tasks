@@ -61,7 +61,7 @@ const TaskDetailDialog = ({ open, onOpenChange, taskId, taskTitle, currentUserId
       .from("task_comments")
       .select(`
         *,
-        profiles:user_id (
+        profiles!task_comments_user_id_fkey (
           username
         )
       `)
