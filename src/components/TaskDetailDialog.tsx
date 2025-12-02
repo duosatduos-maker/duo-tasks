@@ -59,12 +59,7 @@ const TaskDetailDialog = ({ open, onOpenChange, taskId, taskTitle, currentUserId
   const loadComments = async () => {
     const { data, error } = await supabase
       .from("task_comments")
-      .select(`
-        *,
-        profiles!task_comments_user_id_fkey (
-          username
-        )
-      `)
+      .select("*")
       .eq("task_id", taskId)
       .order("created_at", { ascending: true });
 
@@ -77,7 +72,21 @@ const TaskDetailDialog = ({ open, onOpenChange, taskId, taskTitle, currentUserId
       return;
     }
 
-    setComments(data || []);
+    // Fetch usernames separately
+    const userIds = [...new Set(data?.map(c => c.user_id).filter(Boolean))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .in("id", userIds);
+
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+    
+    const commentsWithProfiles = (data || []).map(comment => ({
+      ...comment,
+      profiles: profileMap.get(comment.user_id)
+    }));
+
+    setComments(commentsWithProfiles as any);
   };
 
   const sendMessage = async () => {
