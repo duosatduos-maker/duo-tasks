@@ -4,6 +4,8 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Trash2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AlarmNotificationService } from "@/services/alarmNotifications";
+import { Capacitor } from "@capacitor/core";
 
 interface Alarm {
   id: string;
@@ -24,6 +26,11 @@ const AlarmList = ({ pairId }: AlarmListProps) => {
   useEffect(() => {
     loadAlarms();
 
+    // Request notification permissions on mount
+    if (Capacitor.isNativePlatform()) {
+      AlarmNotificationService.requestPermissions();
+    }
+
     const channel = supabase
       .channel("alarms-changes")
       .on(
@@ -34,8 +41,18 @@ const AlarmList = ({ pairId }: AlarmListProps) => {
           table: "alarms",
           filter: `pair_id=eq.${pairId}`,
         },
-        () => {
-          loadAlarms();
+        async (payload) => {
+          console.log("Alarm change detected:", payload);
+          await loadAlarms();
+          
+          // Schedule or update notification based on the event
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const alarm = payload.new as Alarm;
+            await AlarmNotificationService.updateAlarm(alarm);
+          } else if (payload.eventType === 'DELETE') {
+            const alarm = payload.old as Alarm;
+            await AlarmNotificationService.cancelAlarm(alarm.id);
+          }
         }
       )
       .subscribe();
@@ -58,16 +75,28 @@ const AlarmList = ({ pairId }: AlarmListProps) => {
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      setAlarms(data || []);
+      return;
+    }
+
+    setAlarms(data || []);
+    
+    // Schedule notifications for all active alarms
+    if (Capacitor.isNativePlatform() && data) {
+      for (const alarm of data) {
+        if (alarm.active) {
+          await AlarmNotificationService.scheduleAlarm(alarm);
+        }
+      }
     }
   };
 
   const toggleAlarm = async (alarmId: string, active: boolean) => {
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from("alarms")
       .update({ active: !active })
-      .eq("id", alarmId);
+      .eq("id", alarmId)
+      .select()
+      .single();
 
     if (error) {
       toast({
@@ -75,10 +104,19 @@ const AlarmList = ({ pairId }: AlarmListProps) => {
         description: error.message,
         variant: "destructive",
       });
+      return;
+    }
+
+    // Update the notification
+    if (data) {
+      await AlarmNotificationService.updateAlarm(data);
     }
   };
 
   const deleteAlarm = async (alarmId: string) => {
+    // Cancel the notification first
+    await AlarmNotificationService.cancelAlarm(alarmId);
+
     const { error } = await supabase.from("alarms").delete().eq("id", alarmId);
 
     if (error) {
