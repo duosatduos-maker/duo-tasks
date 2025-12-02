@@ -11,6 +11,8 @@ import AlarmList from "@/components/AlarmList";
 import PairingDialog from "@/components/PairingDialog";
 import AddTaskDialog from "@/components/AddTaskDialog";
 import AddAlarmDialog from "@/components/AddAlarmDialog";
+import TaskCalendar from "@/components/TaskCalendar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -18,6 +20,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activePair, setActivePair] = useState<any>(null);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
+  const [tasks, setTasks] = useState<any[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -44,6 +47,31 @@ const Dashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  // Subscribe to task changes
+  useEffect(() => {
+    if (!activePair) return;
+
+    const channel = supabase
+      .channel("dashboard-tasks-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tasks",
+          filter: `pair_id=eq.${activePair.id}`,
+        },
+        () => {
+          loadTasks(activePair.id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activePair]);
 
   const loadPairData = async (userId: string) => {
     try {
@@ -77,12 +105,44 @@ const Dashboard = () => {
           .maybeSingle();
         
         setPartnerProfile(profile);
+        
+        // Load tasks for the calendar
+        await loadTasks(pairs.id);
       }
     } catch (error: any) {
       console.error("Error loading pair:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadTasks = async (pairId: string) => {
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("pair_id", pairId)
+      .order("due_date", { ascending: true });
+
+    if (error) {
+      console.error("Error loading tasks:", error);
+      return;
+    }
+
+    // Fetch usernames separately for assigned users
+    const userIds = [...new Set(data?.map(t => t.assigned_to).filter(Boolean))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .in("id", userIds);
+
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+    
+    const tasksWithProfiles = (data || []).map(task => ({
+      ...task,
+      profiles: task.assigned_to ? profileMap.get(task.assigned_to) : null
+    }));
+
+    setTasks(tasksWithProfiles as any);
   };
 
   const handleSignOut = async () => {
@@ -168,27 +228,40 @@ const Dashboard = () => {
               </CardHeader>
             </Card>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card className="shadow-[var(--shadow-soft)]">
-                <CardHeader className="flex flex-row items-center gap-2 pb-3">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                  <CardTitle>Tasks</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <TaskList pairId={activePair.id} currentUserId={user?.id || ""} />
-                </CardContent>
-              </Card>
+            <Tabs defaultValue="list" className="space-y-6">
+              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+                <TabsTrigger value="list">Task List</TabsTrigger>
+                <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+              </TabsList>
 
-              <Card className="shadow-[var(--shadow-soft)]">
-                <CardHeader className="flex flex-row items-center gap-2 pb-3">
-                  <Clock className="h-5 w-5 text-accent" />
-                  <CardTitle>Alarms</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <AlarmList pairId={activePair.id} />
-                </CardContent>
-              </Card>
-            </div>
+              <TabsContent value="list" className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card className="shadow-[var(--shadow-soft)]">
+                    <CardHeader className="flex flex-row items-center gap-2 pb-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary" />
+                      <CardTitle>Tasks</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <TaskList pairId={activePair.id} currentUserId={user?.id || ""} />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-[var(--shadow-soft)]">
+                    <CardHeader className="flex flex-row items-center gap-2 pb-3">
+                      <Clock className="h-5 w-5 text-accent" />
+                      <CardTitle>Alarms</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <AlarmList pairId={activePair.id} />
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="calendar">
+                <TaskCalendar tasks={tasks} currentUserId={user?.id || ""} />
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </main>
