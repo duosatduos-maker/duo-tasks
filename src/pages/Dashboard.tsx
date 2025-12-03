@@ -5,21 +5,31 @@ import { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, UserPlus, Plus, Clock, CheckCircle2 } from "lucide-react";
+import { LogOut, UserPlus, Clock, CheckCircle2, History } from "lucide-react";
 import TaskList from "@/components/TaskList";
 import AlarmList from "@/components/AlarmList";
 import PairingDialog from "@/components/PairingDialog";
 import AddTaskDialog from "@/components/AddTaskDialog";
 import AddAlarmDialog from "@/components/AddAlarmDialog";
 import TaskCalendar from "@/components/TaskCalendar";
+import TaskHistory from "@/components/TaskHistory";
+import PartnerSelector from "@/components/PartnerSelector";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+interface Partner {
+  pairId: string;
+  partnerId: string;
+  partnerUsername: string;
+  acceptedAt: string;
+}
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activePair, setActivePair] = useState<any>(null);
-  const [partnerProfile, setPartnerProfile] = useState<any>(null);
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
+  const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -48,9 +58,9 @@ const Dashboard = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // Subscribe to task changes
+  // Subscribe to task changes for selected pair
   useEffect(() => {
-    if (!activePair) return;
+    if (!selectedPairId) return;
 
     const channel = supabase
       .channel("dashboard-tasks-changes")
@@ -60,10 +70,10 @@ const Dashboard = () => {
           event: "*",
           schema: "public",
           table: "tasks",
-          filter: `pair_id=eq.${activePair.id}`,
+          filter: `pair_id=eq.${selectedPairId}`,
         },
         () => {
-          loadTasks(activePair.id);
+          loadTasks(selectedPairId);
         }
       )
       .subscribe();
@@ -71,7 +81,7 @@ const Dashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activePair]);
+  }, [selectedPairId]);
 
   const loadPairData = async (userId: string) => {
     try {
@@ -84,36 +94,61 @@ const Dashboard = () => {
       
       setUserProfile(myProfile);
 
-      // Load pair data
+      // Load ALL accepted pairs for this user
       const { data: pairs, error } = await supabase
         .from("pairs")
         .select("*")
         .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`)
-        .eq("status", "accepted")
-        .maybeSingle();
+        .eq("status", "accepted");
 
-      if (error && error.code !== "PGRST116") throw error;
+      if (error) throw error;
 
-      if (pairs) {
-        setActivePair(pairs);
-        const partnerId = pairs.user_id_1 === userId ? pairs.user_id_2 : pairs.user_id_1;
-        
-        const { data: profile } = await supabase
+      if (pairs && pairs.length > 0) {
+        // Get all partner IDs
+        const partnerIds = pairs.map(p => 
+          p.user_id_1 === userId ? p.user_id_2 : p.user_id_1
+        );
+
+        // Fetch all partner profiles
+        const { data: profiles } = await supabase
           .from("profiles")
           .select("id, username")
-          .eq("id", partnerId)
-          .maybeSingle();
+          .in("id", partnerIds);
+
+        const profileMap = new Map(profiles?.map(p => [p.id, p.username]) || []);
+
+        // Build partners array
+        const partnersList: Partner[] = pairs.map(pair => {
+          const partnerId = pair.user_id_1 === userId ? pair.user_id_2 : pair.user_id_1;
+          return {
+            pairId: pair.id,
+            partnerId,
+            partnerUsername: profileMap.get(partnerId) || "Partner",
+            acceptedAt: pair.accepted_at || pair.created_at,
+          };
+        });
+
+        setPartners(partnersList);
         
-        setPartnerProfile(profile);
-        
-        // Load tasks for the calendar
-        await loadTasks(pairs.id);
+        // Select first partner by default
+        if (partnersList.length > 0) {
+          setSelectedPairId(partnersList[0].pairId);
+          setSelectedPartner(partnersList[0]);
+          await loadTasks(partnersList[0].pairId);
+        }
       }
     } catch (error: any) {
-      console.error("Error loading pair:", error);
+      console.error("Error loading pairs:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectPartner = (pairId: string) => {
+    setSelectedPairId(pairId);
+    const partner = partners.find(p => p.pairId === pairId);
+    setSelectedPartner(partner || null);
+    if (pairId) loadTasks(pairId);
   };
 
   const loadTasks = async (pairId: string) => {
@@ -185,53 +220,63 @@ const Dashboard = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-4xl space-y-6">
-        {!activePair ? (
-          <Card className="text-center py-12 shadow-[var(--shadow-soft)]">
-            <CardContent className="space-y-4">
-              <div className="mx-auto w-20 h-20 bg-gradient-to-br from-secondary to-cool rounded-2xl flex items-center justify-center">
-                <UserPlus className="w-10 h-10 text-accent" />
+        {/* Partners Section - Always visible */}
+        <Card className="shadow-[var(--shadow-soft)]">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-primary" />
+                Your Partners
+              </CardTitle>
+              <PairingDialog userId={user?.id || ""} onPairCreated={() => loadPairData(user?.id || "")} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {partners.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-muted-foreground mb-2">No partners yet</p>
+                <p className="text-sm text-muted-foreground">Add a partner to start sharing tasks and alarms</p>
               </div>
-              <div>
-                <h2 className="text-2xl font-semibold mb-2">Find Your Duo Partner</h2>
-                <p className="text-muted-foreground mb-6">
-                  Connect with a friend to start sharing tasks and alarms
-                </p>
-                <PairingDialog userId={user?.id || ""} onPairCreated={() => loadPairData(user?.id || "")} />
+            ) : (
+              <div className="space-y-3">
+                <PartnerSelector 
+                  partners={partners} 
+                  selectedPairId={selectedPairId} 
+                  onSelectPartner={handleSelectPartner} 
+                />
+                {selectedPartner && (
+                  <p className="text-sm text-muted-foreground">
+                    Connected since {new Date(selectedPartner.acceptedAt).toLocaleDateString()}
+                  </p>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        ) : (
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Main Content - Only show if partner selected */}
+        {selectedPairId && selectedPartner && (
           <>
-            <Card className="shadow-[var(--shadow-soft)]">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl">
-                      Paired with{" "}
-                      <span className="text-primary">{partnerProfile?.username || "Partner"}</span>
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Connected since {new Date(activePair.accepted_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <AddTaskDialog 
-                      pairId={activePair.id} 
-                      userId={user?.id || ""} 
-                      partnerId={partnerProfile?.id || null}
-                      myUsername={userProfile?.username || "Me"}
-                      partnerUsername={partnerProfile?.username || "Partner"}
-                    />
-                    <AddAlarmDialog pairId={activePair.id} userId={user?.id || ""} />
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
+            {/* Action Buttons */}
+            <div className="flex gap-2 justify-end">
+              <AddTaskDialog 
+                pairId={selectedPairId} 
+                userId={user?.id || ""} 
+                partnerId={selectedPartner.partnerId}
+                myUsername={userProfile?.username || "Me"}
+                partnerUsername={selectedPartner.partnerUsername}
+              />
+              <AddAlarmDialog pairId={selectedPairId} userId={user?.id || ""} />
+            </div>
 
             <Tabs defaultValue="list" className="space-y-6">
-              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
-                <TabsTrigger value="list">Task List</TabsTrigger>
-                <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+              <TabsList className="grid w-full max-w-lg mx-auto grid-cols-3">
+                <TabsTrigger value="list">Tasks</TabsTrigger>
+                <TabsTrigger value="calendar">Calendar</TabsTrigger>
+                <TabsTrigger value="history" className="gap-1">
+                  <History className="h-4 w-4" />
+                  History
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="list" className="space-y-6">
@@ -239,10 +284,10 @@ const Dashboard = () => {
                   <Card className="shadow-[var(--shadow-soft)]">
                     <CardHeader className="flex flex-row items-center gap-2 pb-3">
                       <CheckCircle2 className="h-5 w-5 text-primary" />
-                      <CardTitle>Tasks</CardTitle>
+                      <CardTitle>Tasks with @{selectedPartner.partnerUsername}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <TaskList pairId={activePair.id} currentUserId={user?.id || ""} />
+                      <TaskList pairId={selectedPairId} currentUserId={user?.id || ""} />
                     </CardContent>
                   </Card>
 
@@ -252,7 +297,7 @@ const Dashboard = () => {
                       <CardTitle>Alarms</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <AlarmList pairId={activePair.id} />
+                      <AlarmList pairId={selectedPairId} />
                     </CardContent>
                   </Card>
                 </div>
@@ -260,6 +305,13 @@ const Dashboard = () => {
 
               <TabsContent value="calendar">
                 <TaskCalendar tasks={tasks} currentUserId={user?.id || ""} />
+              </TabsContent>
+
+              <TabsContent value="history">
+                <TaskHistory 
+                  userId={user?.id || ""} 
+                  pairIds={partners.map(p => p.pairId)} 
+                />
               </TabsContent>
             </Tabs>
           </>
