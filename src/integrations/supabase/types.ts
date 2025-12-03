@@ -163,6 +163,8 @@ export type Database = {
           assigned_to: string | null
           completed: boolean
           completed_at: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -176,6 +178,8 @@ export type Database = {
           assigned_to?: string | null
           completed?: boolean
           completed_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -189,6 +193,8 @@ export type Database = {
           assigned_to?: string | null
           completed?: boolean
           completed_at?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -202,6 +208,13 @@ export type Database = {
           {
             foreignKeyName: "tasks_assigned_to_fkey"
             columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_confirmed_by_fkey"
+            columns: ["confirmed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

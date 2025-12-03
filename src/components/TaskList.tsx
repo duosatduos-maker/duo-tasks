@@ -18,6 +18,8 @@ interface Task {
   assigned_to: string | null;
   due_date: string | null;
   scope: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
   profiles?: {
     username: string;
   };
@@ -90,17 +92,37 @@ const TaskList = ({ pairId, currentUserId }: TaskListProps) => {
     setTasks(tasksWithProfiles as any);
   };
 
-  const toggleTask = async (taskId: string, completed: boolean) => {
+  const confirmTask = async (task: Task) => {
+    // Only partner can confirm tasks assigned to the other user
+    if (task.assigned_to === currentUserId) {
+      toast({
+        title: "Cannot confirm own task",
+        description: "Your partner needs to confirm this task",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { error } = await supabase
       .from("tasks")
-      .update({ completed: !completed, completed_at: !completed ? new Date().toISOString() : null })
-      .eq("id", taskId);
+      .update({ 
+        completed: true, 
+        completed_at: new Date().toISOString(),
+        confirmed_by: currentUserId,
+        confirmed_at: new Date().toISOString()
+      })
+      .eq("id", task.id);
 
     if (error) {
       toast({
         title: "Error",
         description: error.message,
         variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Task confirmed!",
+        description: `You confirmed "${task.title}" as complete`,
       });
     }
   };
@@ -127,9 +149,9 @@ const TaskList = ({ pairId, currentUserId }: TaskListProps) => {
     }
   };
 
-  // Separate tasks by owner
-  const myTasks = tasks.filter(t => t.assigned_to === currentUserId);
-  const partnerTasks = tasks.filter(t => t.assigned_to !== currentUserId);
+  // Separate tasks by owner - only show incomplete tasks (completed ones go to history)
+  const myTasks = tasks.filter(t => t.assigned_to === currentUserId && !t.confirmed_by);
+  const partnerTasks = tasks.filter(t => t.assigned_to !== currentUserId && !t.confirmed_by);
   const partnerName = partnerTasks[0]?.profiles?.username || "Partner";
 
   const renderTaskCard = (task: Task) => {
@@ -144,11 +166,22 @@ const TaskList = ({ pairId, currentUserId }: TaskListProps) => {
             : "bg-primary/5 border-primary/20 hover:bg-primary/10"
         )}
       >
-        <Checkbox
-          checked={task.completed}
-          onCheckedChange={() => toggleTask(task.id, task.completed)}
-          className="mt-1"
-        />
+        {/* Only show confirm button for partner's tasks (tasks not assigned to current user) */}
+        {!isMyTask ? (
+          <Checkbox
+            checked={task.completed}
+            onCheckedChange={() => confirmTask(task)}
+            className="mt-1"
+            title="Confirm task completion"
+          />
+        ) : (
+          <div className={cn(
+            "w-4 h-4 rounded border-2 mt-1 flex items-center justify-center",
+            task.completed ? "bg-muted border-muted-foreground/30" : "border-muted-foreground/30"
+          )}>
+            {task.completed && <span className="text-xs text-muted-foreground">⏳</span>}
+          </div>
+        )}
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <p className={cn(
