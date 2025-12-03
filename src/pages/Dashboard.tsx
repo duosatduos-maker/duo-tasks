@@ -5,7 +5,7 @@ import { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, UserPlus, Clock, CheckCircle2, History } from "lucide-react";
+import { LogOut, Clock, CheckCircle2, History, Plus, UserPlus } from "lucide-react";
 import TaskList from "@/components/TaskList";
 import AlarmList from "@/components/AlarmList";
 import PairingDialog from "@/components/PairingDialog";
@@ -31,6 +31,7 @@ const Dashboard = () => {
   const [selectedPairId, setSelectedPairId] = useState<string | null>(null);
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
+  const [pairingOpen, setPairingOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -198,103 +199,150 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-warm-light rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">D</span>
+      {/* Compact Header */}
+      <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {/* Logo */}
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold">D</span>
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  Duos
+                </h1>
+                {userProfile && (
+                  <p className="text-[10px] text-muted-foreground -mt-0.5">@{userProfile.username}</p>
+                )}
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Duos
-              </h1>
-              {userProfile && (
-                <p className="text-xs text-muted-foreground">@{userProfile.username}</p>
-              )}
-            </div>
+
+            {/* Partner Selector - Compact dropdown */}
+            {partners.length > 0 && (
+              <PartnerSelector 
+                partners={partners} 
+                selectedPairId={selectedPairId} 
+                onSelectPartner={handleSelectPartner}
+                onAddPartner={() => setPairingOpen(true)}
+              />
+            )}
           </div>
-          <Button variant="ghost" size="icon" onClick={handleSignOut}>
-            <LogOut className="h-5 w-5" />
-          </Button>
+
+          <div className="flex items-center gap-2">
+            {/* Add Partner Button - Compact */}
+            {partners.length === 0 && (
+              <Button 
+                size="sm" 
+                onClick={() => setPairingOpen(true)}
+                className="gap-2 bg-gradient-to-r from-primary to-accent"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Find Partner</span>
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={handleSignOut} className="h-9 w-9">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-4xl space-y-6">
-        {/* Partners Section - Always visible */}
-        <Card className="shadow-[var(--shadow-soft)]">
-          <CardHeader>
+      {/* Hidden Pairing Dialog */}
+      <PairingDialog 
+        userId={user?.id || ""} 
+        onPairCreated={() => loadPairData(user?.id || "")}
+        open={pairingOpen}
+        onOpenChange={setPairingOpen}
+        trigger={<span />}
+      />
+
+      <main className="container mx-auto px-4 py-6 max-w-5xl">
+        {/* Empty State */}
+        {partners.length === 0 ? (
+          <Card className="text-center py-16 shadow-[var(--shadow-soft)] max-w-md mx-auto mt-12">
+            <CardContent className="space-y-4">
+              <div className="mx-auto w-20 h-20 bg-gradient-to-br from-primary/20 to-accent/20 rounded-2xl flex items-center justify-center">
+                <UserPlus className="w-10 h-10 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold mb-2">Find Your Duo Partner</h2>
+                <p className="text-muted-foreground mb-6">
+                  Connect with a friend to start sharing tasks and accountability
+                </p>
+                <Button 
+                  onClick={() => setPairingOpen(true)}
+                  className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Find Partner
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : selectedPairId && selectedPartner ? (
+          <div className="space-y-6">
+            {/* Quick Actions Bar */}
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-primary" />
-                Your Partners
-              </CardTitle>
-              <PairingDialog userId={user?.id || ""} onPairCreated={() => loadPairData(user?.id || "")} />
-            </div>
-          </CardHeader>
-          <CardContent>
-            {partners.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-muted-foreground mb-2">No partners yet</p>
-                <p className="text-sm text-muted-foreground">Add a partner to start sharing tasks and alarms</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <PartnerSelector 
-                  partners={partners} 
-                  selectedPairId={selectedPairId} 
-                  onSelectPartner={handleSelectPartner} 
-                />
-                {selectedPartner && (
-                  <p className="text-sm text-muted-foreground">
-                    Connected since {new Date(selectedPartner.acceptedAt).toLocaleDateString()}
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-lg font-semibold">
+                  {selectedPartner.partnerUsername.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-medium">Working with @{selectedPartner.partnerUsername}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Partners since {new Date(selectedPartner.acceptedAt).toLocaleDateString()}
                   </p>
-                )}
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Main Content - Only show if partner selected */}
-        {selectedPairId && selectedPartner && (
-          <>
-            {/* Action Buttons */}
-            <div className="flex gap-2 justify-end">
-              <AddTaskDialog 
-                pairId={selectedPairId} 
-                userId={user?.id || ""} 
-                partnerId={selectedPartner.partnerId}
-                myUsername={userProfile?.username || "Me"}
-                partnerUsername={selectedPartner.partnerUsername}
-              />
-              <AddAlarmDialog pairId={selectedPairId} userId={user?.id || ""} />
+              <div className="flex gap-2">
+                <AddTaskDialog 
+                  pairId={selectedPairId} 
+                  userId={user?.id || ""} 
+                  partnerId={selectedPartner.partnerId}
+                  myUsername={userProfile?.username || "Me"}
+                  partnerUsername={selectedPartner.partnerUsername}
+                />
+                <AddAlarmDialog pairId={selectedPairId} userId={user?.id || ""} />
+              </div>
             </div>
 
-            <Tabs defaultValue="list" className="space-y-6">
-              <TabsList className="grid w-full max-w-lg mx-auto grid-cols-3">
-                <TabsTrigger value="list">Tasks</TabsTrigger>
-                <TabsTrigger value="calendar">Calendar</TabsTrigger>
-                <TabsTrigger value="history" className="gap-1">
+            {/* Main Content Tabs */}
+            <Tabs defaultValue="list" className="space-y-4">
+              <TabsList className="grid w-full max-w-sm grid-cols-3 h-10">
+                <TabsTrigger value="list" className="gap-1.5">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Tasks
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="gap-1.5">
+                  <Clock className="h-4 w-4" />
+                  Calendar
+                </TabsTrigger>
+                <TabsTrigger value="history" className="gap-1.5">
                   <History className="h-4 w-4" />
                   History
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="list" className="space-y-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  <Card className="shadow-[var(--shadow-soft)]">
-                    <CardHeader className="flex flex-row items-center gap-2 pb-3">
-                      <CheckCircle2 className="h-5 w-5 text-primary" />
-                      <CardTitle>Tasks with @{selectedPartner.partnerUsername}</CardTitle>
+              <TabsContent value="list" className="space-y-4">
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {/* Tasks Section - Takes more space */}
+                  <Card className="lg:col-span-2 shadow-[var(--shadow-soft)]">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">Active Tasks</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <TaskList pairId={selectedPairId} currentUserId={user?.id || ""} />
                     </CardContent>
                   </Card>
 
+                  {/* Alarms - Sidebar */}
                   <Card className="shadow-[var(--shadow-soft)]">
-                    <CardHeader className="flex flex-row items-center gap-2 pb-3">
-                      <Clock className="h-5 w-5 text-accent" />
-                      <CardTitle>Alarms</CardTitle>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-accent" />
+                        Alarms
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <AlarmList pairId={selectedPairId} />
@@ -314,8 +362,8 @@ const Dashboard = () => {
                 />
               </TabsContent>
             </Tabs>
-          </>
-        )}
+          </div>
+        ) : null}
       </main>
     </div>
   );
