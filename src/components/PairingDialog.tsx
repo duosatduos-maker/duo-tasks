@@ -17,10 +17,15 @@ import { UserPlus } from "lucide-react";
 interface PairingDialogProps {
   userId: string;
   onPairCreated: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode;
 }
 
-const PairingDialog = ({ userId, onPairCreated }: PairingDialogProps) => {
-  const [open, setOpen] = useState(false);
+const PairingDialog = ({ userId, onPairCreated, open: controlledOpen, onOpenChange, trigger }: PairingDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   const [partnerUsername, setPartnerUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -105,12 +110,16 @@ const PairingDialog = ({ userId, onPairCreated }: PairingDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity">
-          <UserPlus className="h-4 w-4 mr-2" />
-          Find Partner
-        </Button>
-      </DialogTrigger>
+      {trigger ? (
+        <DialogTrigger asChild>{trigger}</DialogTrigger>
+      ) : (
+        <DialogTrigger asChild>
+          <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity">
+            <UserPlus className="h-4 w-4 mr-2" />
+            Find Partner
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Find Your Duo Partner</DialogTitle>
