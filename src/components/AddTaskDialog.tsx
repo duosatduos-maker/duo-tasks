@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -19,16 +19,26 @@ interface AddTaskDialogProps {
   partnerId: string | null;
   myUsername: string;
   partnerUsername: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const AddTaskDialog = ({ pairId, userId, partnerId, myUsername, partnerUsername }: AddTaskDialogProps) => {
-  const [open, setOpen] = useState(false);
+const AddTaskDialog = ({ pairId, userId, partnerId, myUsername, partnerUsername, open: controlledOpen, onOpenChange }: AddTaskDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState(userId);
   const [scope, setScope] = useState<string>("this_week");
   const [dueDate, setDueDate] = useState<Date>();
   const { toast } = useToast();
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (onOpenChange || (() => {})) : setInternalOpen;
+
+  useEffect(() => {
+    setAssignedTo(userId);
+  }, [userId]);
 
   const handleAddTask = async () => {
     if (!title.trim()) {
@@ -79,6 +89,105 @@ const AddTaskDialog = ({ pairId, userId, partnerId, myUsername, partnerUsername 
     }
   };
 
+  const dialogContent = (
+    <DialogContent className="max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Create New Task</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4 py-4">
+        <div className="space-y-2">
+          <Label htmlFor="title">Task Title</Label>
+          <Input
+            id="title"
+            placeholder="e.g., Go to the doctor"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="description">Description (optional)</Label>
+          <Textarea
+            id="description"
+            placeholder="Add any additional details..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="assigned">Assign to</Label>
+          <Select value={assignedTo} onValueChange={setAssignedTo}>
+            <SelectTrigger id="assigned">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={userId}>Me ({myUsername})</SelectItem>
+              {partnerId && (
+                <SelectItem value={partnerId}>{partnerUsername}</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="scope">Time Scope</Label>
+          <Select value={scope} onValueChange={setScope}>
+            <SelectTrigger id="scope">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tomorrow">Tomorrow</SelectItem>
+              <SelectItem value="this_week">This Week</SelectItem>
+              <SelectItem value="this_month">This Month</SelectItem>
+              <SelectItem value="next_month">Next Month</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Due Date</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !dueDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dueDate ? format(dueDate, "PPP") : "Pick a date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dueDate}
+                onSelect={setDueDate}
+                initialFocus
+                className="pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <Button onClick={handleAddTask} className="w-full">
+          Create Task
+        </Button>
+      </div>
+    </DialogContent>
+  );
+
+  if (isControlled) {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        {dialogContent}
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -87,94 +196,7 @@ const AddTaskDialog = ({ pairId, userId, partnerId, myUsername, partnerUsername 
           Add Task
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Create New Task</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Task Title</Label>
-            <Input
-              id="title"
-              placeholder="e.g., Go to the doctor"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="description">Description (optional)</Label>
-            <Textarea
-              id="description"
-              placeholder="Add any additional details..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="assigned">Assign to</Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo}>
-              <SelectTrigger id="assigned">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={userId}>Me ({myUsername})</SelectItem>
-                {partnerId && (
-                  <SelectItem value={partnerId}>{partnerUsername}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="scope">Time Scope</Label>
-            <Select value={scope} onValueChange={setScope}>
-              <SelectTrigger id="scope">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="tomorrow">Tomorrow</SelectItem>
-                <SelectItem value="this_week">This Week</SelectItem>
-                <SelectItem value="this_month">This Month</SelectItem>
-                <SelectItem value="next_month">Next Month</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Due Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !dueDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dueDate ? format(dueDate, "PPP") : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dueDate}
-                  onSelect={setDueDate}
-                  initialFocus
-                  className="pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <Button onClick={handleAddTask} className="w-full">
-            Create Task
-          </Button>
-        </div>
-      </DialogContent>
+      {dialogContent}
     </Dialog>
   );
 };

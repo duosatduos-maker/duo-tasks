@@ -47,13 +47,10 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        warm: {
-          DEFAULT: "hsl(14, 88%, 62%)",
-          light: "hsl(14, 88%, 75%)",
-        },
-        cool: {
-          DEFAULT: "hsl(180, 65%, 48%)",
-          light: "hsl(180, 55%, 88%)",
+        teal: {
+          DEFAULT: "hsl(174, 72%, 46%)",
+          light: "hsl(174, 45%, 90%)",
+          dark: "hsl(174, 72%, 35%)",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
@@ -88,10 +85,15 @@ export default {
             height: "0",
           },
         },
+        "pulse-slow": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.5" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-slow": "pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
       },
     },
   },
