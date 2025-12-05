@@ -17,14 +17,20 @@ import { Clock } from "lucide-react";
 interface AddAlarmDialogProps {
   pairId: string;
   userId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const AddAlarmDialog = ({ pairId, userId }: AddAlarmDialogProps) => {
-  const [open, setOpen] = useState(false);
+const AddAlarmDialog = ({ pairId, userId, open: controlledOpen, onOpenChange }: AddAlarmDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [time, setTime] = useState("");
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (onOpenChange || (() => {})) : setInternalOpen;
 
   const handleAddAlarm = async () => {
     if (!time) {
@@ -66,6 +72,41 @@ const AddAlarmDialog = ({ pairId, userId }: AddAlarmDialogProps) => {
     }
   };
 
+  const dialogContent = (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Set New Alarm</DialogTitle>
+        <DialogDescription>Create an alarm that will ring for both you and your partner</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="time">Time</Label>
+          <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="label">Label (optional)</Label>
+          <Input
+            id="label"
+            placeholder="Morning workout, Take medicine, etc."
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </div>
+        <Button onClick={handleAddAlarm} disabled={loading} className="w-full">
+          {loading ? "Setting..." : "Set Alarm"}
+        </Button>
+      </div>
+    </DialogContent>
+  );
+
+  if (isControlled) {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        {dialogContent}
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -74,30 +115,7 @@ const AddAlarmDialog = ({ pairId, userId }: AddAlarmDialogProps) => {
           Alarm
         </Button>
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Set New Alarm</DialogTitle>
-          <DialogDescription>Create an alarm that will ring for both you and your partner</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="time">Time</Label>
-            <Input id="time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="label">Label (optional)</Label>
-            <Input
-              id="label"
-              placeholder="Morning workout, Take medicine, etc."
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-            />
-          </div>
-          <Button onClick={handleAddAlarm} disabled={loading} className="w-full bg-accent hover:bg-accent/90">
-            {loading ? "Setting..." : "Set Alarm"}
-          </Button>
-        </div>
-      </DialogContent>
+      {dialogContent}
     </Dialog>
   );
 };
