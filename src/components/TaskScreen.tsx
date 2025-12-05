@@ -15,14 +15,12 @@ interface Task {
   description: string | null;
   completed: boolean;
   created_at: string;
+  created_by: string;
   assigned_to: string | null;
   due_date: string | null;
   scope: string | null;
   confirmed_by: string | null;
   confirmed_at: string | null;
-  profiles?: {
-    username: string;
-  };
 }
 
 interface TaskScreenProps {
@@ -93,7 +91,8 @@ const TaskScreen = ({ pairId, currentUserId, partnerName }: TaskScreenProps) => 
   };
 
   const confirmTask = async (task: Task) => {
-    if (task.assigned_to === currentUserId) {
+    // Only partner can confirm tasks - not the task creator
+    if (task.created_by === currentUserId) {
       toast({
         title: "Cannot confirm own task",
         description: "Your partner needs to confirm this task",
@@ -147,13 +146,13 @@ const TaskScreen = ({ pairId, currentUserId, partnerName }: TaskScreenProps) => 
     }
   };
 
-  // Only show incomplete tasks
+  // Tasks are grouped by who CREATED them (the accountable person)
   const activeTasks = tasks.filter(t => !t.confirmed_by);
-  const myTasks = activeTasks.filter(t => t.assigned_to === currentUserId);
-  const partnerTasks = activeTasks.filter(t => t.assigned_to !== currentUserId);
+  const myTasks = activeTasks.filter(t => t.created_by === currentUserId);
+  const partnerTasks = activeTasks.filter(t => t.created_by !== currentUserId);
 
   const renderTask = (task: Task) => {
-    const isMyTask = task.assigned_to === currentUserId;
+    const isMyTask = task.created_by === currentUserId;
     const scopeBadge = getScopeBadge(task.scope);
 
     return (
@@ -229,23 +228,23 @@ const TaskScreen = ({ pairId, currentUserId, partnerName }: TaskScreenProps) => 
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Partner's Tasks First - These are the ones I can confirm */}
-          {partnerTasks.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground px-1">
-                {partnerName}'s Tasks ({partnerTasks.length})
-              </p>
-              {partnerTasks.map(renderTask)}
-            </div>
-          )}
-
-          {/* My Tasks */}
+          {/* My Tasks First - Tasks I created that I'm accountable for */}
           {myTasks.length > 0 && (
-            <div className="space-y-2 mt-6">
+            <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground px-1">
                 My Tasks ({myTasks.length})
               </p>
               {myTasks.map(renderTask)}
+            </div>
+          )}
+
+          {/* Partner's Tasks - Tasks they created that I can confirm */}
+          {partnerTasks.length > 0 && (
+            <div className="space-y-2 mt-6">
+              <p className="text-sm font-medium text-muted-foreground px-1">
+                {partnerName}'s Tasks ({partnerTasks.length})
+              </p>
+              {partnerTasks.map(renderTask)}
             </div>
           )}
         </div>

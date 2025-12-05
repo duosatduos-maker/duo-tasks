@@ -15,6 +15,7 @@ interface Task {
   description: string | null;
   completed: boolean;
   created_at: string;
+  created_by: string;
   assigned_to: string | null;
   due_date: string | null;
   scope: string | null;
@@ -93,8 +94,8 @@ const TaskList = ({ pairId, currentUserId }: TaskListProps) => {
   };
 
   const confirmTask = async (task: Task) => {
-    // Only partner can confirm tasks assigned to the other user
-    if (task.assigned_to === currentUserId) {
+    // Only partner can confirm tasks - not the task creator
+    if (task.created_by === currentUserId) {
       toast({
         title: "Cannot confirm own task",
         description: "Your partner needs to confirm this task",
@@ -149,13 +150,13 @@ const TaskList = ({ pairId, currentUserId }: TaskListProps) => {
     }
   };
 
-  // Separate tasks by owner - only show incomplete tasks (completed ones go to history)
-  const myTasks = tasks.filter(t => t.assigned_to === currentUserId && !t.confirmed_by);
-  const partnerTasks = tasks.filter(t => t.assigned_to !== currentUserId && !t.confirmed_by);
+  // Separate tasks by CREATOR (the accountable person) - only show incomplete tasks
+  const myTasks = tasks.filter(t => t.created_by === currentUserId && !t.confirmed_by);
+  const partnerTasks = tasks.filter(t => t.created_by !== currentUserId && !t.confirmed_by);
   const partnerName = partnerTasks[0]?.profiles?.username || "Partner";
 
   const renderTaskCard = (task: Task) => {
-    const isMyTask = task.assigned_to === currentUserId;
+    const isMyTask = task.created_by === currentUserId;
     return (
       <div
         key={task.id}
