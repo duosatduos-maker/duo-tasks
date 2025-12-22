@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Bell, Moon, Zap, Leaf } from "lucide-react";
+import { Trash2, Bell, Moon, Zap, Leaf, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlarmNotificationService } from "@/services/alarmNotifications";
 import { Capacitor } from "@capacitor/core";
 import { cn } from "@/lib/utils";
+import { alarmSoundService } from "@/services/alarmSounds";
 
 interface Alarm {
   id: string;
@@ -43,14 +44,15 @@ const SOUND_ICONS: Record<string, typeof Moon> = {
 };
 
 const SOUND_COLORS: Record<string, string> = {
-  gentle: "bg-amber-100 text-amber-600",
-  energetic: "bg-yellow-100 text-yellow-600",
-  classic: "bg-orange-100 text-orange-600",
-  nature: "bg-green-100 text-green-600",
+  gentle: "bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400",
+  energetic: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/50 dark:text-yellow-400",
+  classic: "bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-400",
+  nature: "bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400",
 };
 
 const AlarmScreen = ({ pairId }: AlarmScreenProps) => {
   const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [playingAlarmId, setPlayingAlarmId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -153,6 +155,17 @@ const AlarmScreen = ({ pairId }: AlarmScreenProps) => {
     }
   };
 
+  const testSound = (alarm: Alarm) => {
+    if (playingAlarmId === alarm.id) {
+      alarmSoundService.stop();
+      setPlayingAlarmId(null);
+    } else {
+      alarmSoundService.preview(alarm.sound || "classic");
+      setPlayingAlarmId(alarm.id);
+      setTimeout(() => setPlayingAlarmId(null), 1500);
+    }
+  };
+
   const formatTime = (time: string) => {
     const [hours, minutes] = time.split(":");
     const hour = parseInt(hours);
@@ -214,6 +227,7 @@ const AlarmScreen = ({ pairId }: AlarmScreenProps) => {
             const { time, period } = formatTime(alarm.time);
             const SoundIcon = SOUND_ICONS[alarm.sound || "classic"] || Bell;
             const soundColor = SOUND_COLORS[alarm.sound || "classic"] || "bg-orange-100 text-orange-600";
+            const isPlaying = playingAlarmId === alarm.id;
             
             return (
               <div
@@ -226,13 +240,25 @@ const AlarmScreen = ({ pairId }: AlarmScreenProps) => {
                 )}
               >
                 <div className="flex items-start gap-4">
-                  {/* Sound Icon */}
-                  <div className={cn(
-                    "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
-                    alarm.active ? soundColor : "bg-muted text-muted-foreground"
-                  )}>
-                    <SoundIcon className="h-6 w-6" />
-                  </div>
+                  {/* Sound Icon - Clickable to test sound */}
+                  <button
+                    onClick={() => testSound(alarm)}
+                    className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all relative",
+                      "hover:scale-105 active:scale-95",
+                      alarm.active ? soundColor : "bg-muted text-muted-foreground"
+                    )}
+                    title="Tap to test sound"
+                  >
+                    {isPlaying ? (
+                      <Volume2 className="h-6 w-6 animate-pulse" />
+                    ) : (
+                      <SoundIcon className="h-6 w-6" />
+                    )}
+                    {isPlaying && (
+                      <div className="absolute inset-0 rounded-xl border-2 border-current animate-ping opacity-50" />
+                    )}
+                  </button>
 
                   {/* Time & Details */}
                   <div className="flex-1 min-w-0">
